@@ -4,7 +4,7 @@ import { istDateTime } from "./primitives";
 /**
  * Admin access (plan §5, page 09).
  *
- * The row set is `INTERNAL_ALLOWED_EMAILS` and nothing else, so the only value
+ * The row set is the users of the `ADMIN_REFERENCEID` msg91 project, so the only value
  * that needs mapping is `lastActiveAt` — the newest `admin_audit_logs.createdAt`
  * for that e-mail (plan §9, gap 10 / Q44).
  *

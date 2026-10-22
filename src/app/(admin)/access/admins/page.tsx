@@ -19,7 +19,8 @@ import {
  * instruction: **e-mail and last active only**. Name, Role, Login-as and Status
  * are gone, and so are Invite admin, Remove and Resend invite — none of them has
  * a source. There is no admin record and no invite record anywhere; an admin
- * exists because `INTERNAL_ALLOWED_EMAILS` says so, and that is the whole of it.
+ * exists because the `ADMIN_REFERENCEID` msg91 project lists them, and that is
+ * the whole of it.
  *
  * Everything else — spacing, typography, table chrome, the three state branches
  * — is untouched.
@@ -51,7 +52,7 @@ export default function AdminAccessPage() {
             margin: "6px 0 0",
           }}
         >
-          Access is controlled by the INTERNAL_ALLOWED_EMAILS allowlist. Last
+          Admins are the users of the msg91 reference project. Last
           active is the most recent action taken in this console.
         </p>
       </SectionHeading>
@@ -61,11 +62,11 @@ export default function AdminAccessPage() {
         loading={<TableShimmer columns={2} rows={6} />}
         empty={
           <EmptyState
-            title="No admins on the allowlist"
-            body="INTERNAL_ALLOWED_EMAILS is empty — nobody can sign in to this console."
+            title="No admins in the reference project"
+            body="The ADMIN_REFERENCEID msg91 project has no users."
           />
         }
-        error={<ErrorState message="The admin allowlist could not be loaded." />}
+        error={<ErrorState message="The admin list could not be loaded." />}
       >
         <TableWrap>
           <Table>

@@ -504,7 +504,7 @@ export const getPlatformKeys = async (signal?: AbortSignal) =>
 /**
  * `GET /api/admin/admins` — live (D9).
  *
- * One row per `INTERNAL_ALLOWED_EMAILS` entry. The route answers raw —
+ * One row per user of the `ADMIN_REFERENCEID` msg91 project. The route answers raw —
  * `{ email, lastActiveAt }`, ISO-8601 or `null` — and `mapAdmins` turns
  * `lastActiveAt` into the IST timestamp, or "never" for an admin who has taken
  * no auditable action in this console.

@@ -31,7 +31,7 @@ import {
  * The e-mail field is an input to msg91 and, if the answer is no, a string to
  * word the rejection with. **It is never compared against anything here:** this
  * client ships no allowlist, and the operator list lives only in gtwy-node's
- * `INTERNAL_ALLOWED_EMAILS`.
+ * admin msg91 project (`ADMIN_REFERENCEID`).
  *
  * No token of any kind is held by this component. The session JWT never reaches
  * JavaScript at all — it lives only in the httpOnly cookie the route sets.
@@ -245,7 +245,7 @@ function LoginScreen() {
           className="flex gap-6 max-sm:flex-col max-sm:gap-1"
           style={{ fontSize: 12, color: "var(--color-neutral-600)" }}
         >
-          <span>Internal · InternalAuth allowlist</span>
+          <span>Internal · admin project only</span>
           <span>v2026.09</span>
         </div>
       </div>
@@ -268,7 +268,7 @@ function LoginScreen() {
                 margin: 0,
               }}
             >
-              Only e-mails on the internal allowlist can continue. There is no
+              Only users of the admin project can continue. There is no
               self-serve sign-up.
             </p>
           </div>
@@ -338,7 +338,7 @@ function LoginScreen() {
             }}
           >
             Need access? Ask an existing admin to add you to{" "}
-            <code>INTERNAL_ALLOWED_EMAILS</code> on gtwy-node.
+            the admin msg91 project.
           </div>
         </form>
       </div>

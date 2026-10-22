@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 
 import { ApiError, fail, ok } from "@/lib/api/envelope";
 import { UpstreamError } from "@/lib/clients/http";
-import { exchangeProxyAuthToken } from "@/lib/clients/gtwy";
+import { exchangeAdminProxyToken, exchangeProxyAuthToken } from "@/lib/clients/gtwy";
 import { operatorVerdictError, verifyOperator } from "@/lib/auth/operatorGate";
 import { withAdmin } from "@/lib/auth/withAdmin";
 import {
@@ -19,9 +19,12 @@ import {
  * establishes the session; everything else in `/api/admin/*` is behind it.
  * What stands in its place is that it accepts exactly one thing — an msg91
  * `proxy_auth_token` — and grants exactly nothing on its own: both answers come
- * from gtwy-node, in two calls, in order.
+ * from gtwy-node, in three calls, in order.
  *
- *   1. `POST {GTWY_API_BASE}/api/user/localToken` with the handoff token in the
+ *   0. `POST {GTWY_API_BASE}/api/user/adminProxyToken` with the admin project's
+ *      handoff token → a platform `proxy_auth_token`. Who can reach this step
+ *      is decided by msg91: only users of the admin project can sign in there.
+ *   1. `POST {GTWY_API_BASE}/api/user/localToken` with the platform token in the
  *      `proxy_auth_token` header and **no body** → gtwy-node's session JWT.
  *      A failure is `400`, never `401`: the browser routes a 401 back to
  *      `/login`, which would make a failed sign-in loop.
@@ -52,7 +55,8 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const jwt = await exchangeProxyAuthToken(proxyAuthToken.trim());
+    const platformToken = await exchangeAdminProxyToken(proxyAuthToken.trim());
+    const jwt = await exchangeProxyAuthToken(platformToken);
 
     const verdict = await verifyOperator(jwt);
     const denial = operatorVerdictError(verdict);

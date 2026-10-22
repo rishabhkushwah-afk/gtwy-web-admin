@@ -139,11 +139,55 @@ export function listInternalOrgs(jwt: string | null) {
 // system that may see a `proxy_auth_token` header, and the second must report
 // its raw status to the classifier rather than throw on a 403.
 
-/** The only gtwy-node endpoint a `proxy_auth_token` may ever be sent to. */
+/** The gtwy-node endpoints a `proxy_auth_token` may ever be sent to. */
+export const ADMIN_PROXY_TOKEN_PATH = "/api/user/adminProxyToken";
 export const LOCAL_TOKEN_PATH = "/api/user/localToken";
 
 /** `GET /api/internal-orgs/access` — the operator probe. */
 export const OPERATOR_ACCESS_PATH = "/api/internal-orgs/access";
+
+/**
+ * Step 0 — trade the admin project's handoff token for a platform one.
+ *
+ * The login widget signs in against the admin console's own msg91 project
+ * (`NEXT_PUBLIC_REFERENCEID`), but `/localToken` only accepts tokens from the
+ * platform project. `userOrgLocal.controller.js#adminProxyToken` decodes the
+ * admin token, finds or creates that person in the platform project under
+ * "GTWY Admin", and returns a platform `proxy_auth_token`. It does no access
+ * check of its own: who can sign in is decided by the admin msg91 project.
+ *
+ * A 403 is surfaced as `forbidden`; anything else that fails is a failed
+ * sign-in (`bad_request`, see step 1).
+ */
+export async function exchangeAdminProxyToken(proxyAuthToken: string): Promise<string> {
+  const { status, body } = await httpRaw(`${base()}${ADMIN_PROXY_TOKEN_PATH}`, {
+    source: `gtwy${ADMIN_PROXY_TOKEN_PATH}`,
+    method: "POST",
+    headers: { proxy_auth_token: proxyAuthToken },
+    // gtwy-node makes three msg91 calls in sequence on this path.
+    timeoutMs: env.msg91TimeoutMs() * 3,
+  });
+
+  const envelope = (body ?? {}) as {
+    success?: boolean;
+    message?: string;
+    data?: { proxy_auth_token?: unknown };
+  };
+  const token = envelope.data?.proxy_auth_token;
+
+  if (status === 403) {
+    console.error(`[admin-api] adminProxyToken refused -> 403`, envelope.message ?? null);
+    throw new ApiError("forbidden", "This account is not a user of the admin project. Access is invite-only.");
+  }
+
+  if (status < 200 || status >= 300 || envelope.success === false || typeof token !== "string" || !token) {
+    // Neither token is ever logged — both are live credentials until spent.
+    console.error(`[admin-api] adminProxyToken exchange failed -> ${status}`, envelope.message ?? null);
+    throw new ApiError("bad_request", "Sign-in could not be completed. Try again.");
+  }
+
+  return token;
+}
 
 /**
  * Step 1 — trade the msg91 handoff token for gtwy-node's session JWT.

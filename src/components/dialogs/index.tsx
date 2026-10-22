@@ -15,7 +15,7 @@ type Props = { open: boolean; onOpenChange: (open: boolean) => void };
  * nothing submits.
  *
  * `InviteAdminDialog` was removed with the Invite admin control it belonged to
- * (plan §6, D9): admin access is the `INTERNAL_ALLOWED_EMAILS` variable, so
+ * (plan §6, D9): admin access is membership of the admin msg91 project, so
  * there is nothing for an invite to write to. `LoginAsDialog` went the same way
  * with D3, the last page that opened it — plan §6 names the dialog itself, not
  * just the buttons, among the controls the board removed.

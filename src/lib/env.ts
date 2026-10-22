@@ -65,13 +65,13 @@ export const env = {
     password: read("TIMESCALE_PASSWORD"),
   }),
 
-  // Auth — same variable and same normalisation as gtwy-node middleware.js.
-  internalAllowedEmails: () => read("INTERNAL_ALLOWED_EMAILS") ?? "",
   adminSessionSecret: () => require_("ADMIN_SESSION_SECRET"),
 
   // msg91 — proxy.utils.js#getallOrgs and proxy.service.js#getProxyDetails.
   adminApiKey: () => require_("ADMIN_API_KEY"),
   publicReferenceId: () => require_("PUBLIC_REFERENCEID"),
+  // The admin console's own msg91 project: its users are the Admin access list.
+  adminReferenceId: () => require_("ADMIN_REFERENCEID"),
   msg91TimeoutMs: () => int(10_000, "MSG91_TIMEOUT_MS"),
 
   // Lago — lago.service.js.

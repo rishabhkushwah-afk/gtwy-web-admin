@@ -32,8 +32,6 @@ services:
       # gtwy-node (sign-in, admin check, block/unblock, internal orgs)
       - key: GTWY_API_BASE
         sync: false
-      - key: INTERNAL_ALLOWED_EMAILS
-        sync: false
 
       # MongoDB
       - key: MONGODB_CONNECTION_URI
@@ -61,6 +59,8 @@ services:
       - key: ADMIN_API_KEY
         sync: false
       - key: PUBLIC_REFERENCEID
+        sync: false
+      - key: ADMIN_REFERENCEID
         sync: false
       - key: MSG91_TIMEOUT_MS
         value: "10000"

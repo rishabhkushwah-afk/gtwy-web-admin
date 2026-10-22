@@ -20,8 +20,8 @@ import {
  *     revalidation deadline (§3).
  *
  * gtwy-node is the only authority. Nothing here compares an address against a
- * list; `INTERNAL_ALLOWED_EMAILS` is read by this repo for exactly one thing —
- * *rendering* the Admin access page — and never to decide a request.
+ * list; the Admin access page lists the `ADMIN_REFERENCEID` project users for
+ * display only — never to decide a request.
  */
 
 export interface OperatorVerdict {

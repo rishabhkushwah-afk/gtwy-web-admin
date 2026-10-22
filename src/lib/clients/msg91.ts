@@ -110,13 +110,16 @@ export interface ProxyTokenIdentity {
  * (`analytics.controller.js#toUserEntry` reads `user.email` off them), so this
  * is the fallback when the proxy-token path does not return one.
  */
-export async function getProxyDetails(params: {
-  company_id?: string | number;
-  user_id?: string | number;
-  pageNo?: number;
-  itemsPerPage?: number;
-}): Promise<{ rows: Msg91User[]; total: number }> {
-  const payload = await httpJson<GetDetailsEnvelope>(`${ROUTES_BASE}/${env.publicReferenceId()}/getDetails`, {
+export async function getProxyDetails(
+  params: {
+    company_id?: string | number;
+    user_id?: string | number;
+    pageNo?: number;
+    itemsPerPage?: number;
+  },
+  referenceId: string = env.publicReferenceId(),
+): Promise<{ rows: Msg91User[]; total: number }> {
+  const payload = await httpJson<GetDetailsEnvelope>(`${ROUTES_BASE}/${referenceId}/getDetails`, {
     source: "msg91.getProxyDetails",
     headers: adminHeaders(),
     query: params,
@@ -183,6 +186,34 @@ export async function listOrgUsers(orgId: string): Promise<Msg91User[]> {
       if (pageNo > 100) break;
     }
 
+    return [...byId.values()];
+  });
+}
+
+/**
+ * Every user of the `ADMIN_REFERENCEID` project (the admin console's own msg91
+ * project) — the row set of the Admin access page. `getDetails` refuses (422)
+ * a call with neither `company_id` nor `user_id`, so this walks the project's
+ * companies and collects each one's users.
+ */
+export async function listReferenceUsers(): Promise<Msg91User[]> {
+  return cached("msg91:reference-users", MSG91_CACHE_TTL_MS, async () => {
+    const referenceId = env.adminReferenceId();
+    const payload = await httpJson<GetDetailsEnvelope>(`${ROUTES_BASE}/${referenceId}/getCompanies`, {
+      source: "msg91.getCompanies",
+      headers: adminHeaders(),
+      query: { itemsPerPage: MAX_ITEMS_PER_PAGE, pageNo: 1 },
+      timeoutMs: env.msg91TimeoutMs(),
+    });
+    const companies = (Array.isArray(payload?.data?.data) ? payload.data.data : [])
+      .map(toOrgEntry)
+      .filter((o): o is Msg91Org => o !== null);
+
+    const byId = new Map<string, Msg91User>();
+    for (const company of companies) {
+      const { rows } = await getProxyDetails({ company_id: company.id, pageNo: 1, itemsPerPage: 100 }, referenceId);
+      for (const row of rows) byId.set(row.id, row);
+    }
     return [...byId.values()];
   });
 }
