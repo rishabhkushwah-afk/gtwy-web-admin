@@ -43,6 +43,7 @@ declare global {
       referenceId: string;
       type: string;
       addInfo: Record<string, string>;
+      theme?: "system" | "light" | "dark";
       success?: () => void;
       failure?: (error: unknown) => void;
     }) => void;
@@ -116,6 +117,9 @@ export async function startMsg91SignIn({
   window.initVerification?.({
     referenceId,
     type: "authorization",
+    // The widget defaults to "system" and turns its text white on a dark OS,
+    // which vanishes against this console's light-only palette.
+    theme: "light",
     addInfo: {
       redirect_path: MSG91_REDIRECT_PATH,
       ...(email ? { email } : {}),

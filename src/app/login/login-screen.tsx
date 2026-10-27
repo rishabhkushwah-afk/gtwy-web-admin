@@ -2,15 +2,12 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Input } from "@/components/ui/input";
-import { Field } from "@/components/ui/field";
 import {
   AdminFetchError,
   createSession,
   rememberDenial,
 } from "@/lib/data/client";
 import {
-  loadScript,
   readProxyAuthToken,
   startMsg91SignIn,
   stripProxyAuthTokenFromUrl,
@@ -19,51 +16,30 @@ import {
 /**
  * Sign-in, in three movements (plan §14.2):
  *
- *   1. The operator names their work e-mail and presses Continue. That mounts
- *      msg91's widget, which owns the credential step entirely.
+ *   1. msg91's widget mounts as soon as the page loads and owns the credential
+ *      step entirely — including asking for the e-mail. A button appears only
+ *      to retry after a failure.
  *   2. msg91 sends the browser back here with `?proxy_auth_token=…`. That value
  *      is stripped from the URL and traded — once, server-side, on
  *      `POST /api/admin/session` — for a session.
  *   3. That route asks gtwy-node whether this is an operator. Only a yes reaches
  *      `/`; a no reaches `/unauthorized`.
  *
- * The e-mail field is an input to msg91 and, if the answer is no, a string to
- * word the rejection with. **It is never compared against anything here:** this
- * client ships no allowlist, and the operator list lives only in gtwy-node's
+ * This client ships no allowlist: the operator list lives only in gtwy-node's
  * admin msg91 project (`ADMIN_REFERENCEID`).
  *
  * No token of any kind is held by this component. The session JWT never reaches
  * JavaScript at all — it lives only in the httpOnly cookie the route sets.
  */
 
-/** Survives the msg91 round trip, which is a full page navigation away and back. */
-const REMEMBERED_EMAIL_KEY = "gtwy_admin_login_email";
-
-function rememberEmail(email: string) {
-  try {
-    window.sessionStorage.setItem(REMEMBERED_EMAIL_KEY, email);
-  } catch {
-    // Storage can be unavailable. The address is only used to word an error.
-  }
-}
-
-function recallEmail(): string {
-  try {
-    return window.sessionStorage.getItem(REMEMBERED_EMAIL_KEY) || "";
-  } catch {
-    return "";
-  }
-}
-
 export function LoginScreen({ referenceId }: { referenceId: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const proxyAuthToken = readProxyAuthToken(searchParams);
 
-  const [email, setEmail] = React.useState("");
   const [phase, setPhase] = React.useState<
     "idle" | "widget" | "exchanging" | "retryable"
-  >(proxyAuthToken ? "exchanging" : "idle");
+  >(proxyAuthToken ? "exchanging" : "widget");
   const [loginErr, setLoginErr] = React.useState("");
   // React mounts effects twice in development. The handoff token is single-use,
   // so a second exchange would fail against a token already spent. This only
@@ -72,18 +48,37 @@ export function LoginScreen({ referenceId }: { referenceId: string }) {
   // Held only when the token was never spent (the request never reached
   // gtwy-node), so a manual retry can reuse it without a new MSG91 round trip.
   const retainedToken = React.useRef<string | null>(null);
+  // Same double-mount guard for the widget: initialising it twice would render
+  // two msg91 forms into the same element.
+  const widgetStarted = React.useRef(false);
 
-  React.useEffect(() => {
-    setEmail(recallEmail());
-  }, []);
+  const startSignIn = React.useCallback(async () => {
+    setLoginErr("");
+    setPhase("widget");
 
-  // Fetch the msg91 bundle as soon as the page is shown, so the click that
-  // starts sign-in does not wait on it. A failure here is not surfaced: the
-  // same load is retried (and reported) when the operator actually clicks.
+    try {
+      await startMsg91SignIn({
+        referenceId,
+        onFailure: () => {
+          setLoginErr("MSG91 could not sign you in. Try again.");
+          setPhase("idle");
+        },
+      });
+    } catch (err) {
+      setLoginErr(
+        err instanceof Error ? err.message : "MSG91 sign-in is unavailable."
+      );
+      setPhase("idle");
+    }
+  }, [referenceId]);
+
+  // There is nothing to fill in before msg91, so its widget opens as soon as
+  // the page is shown — unless this load is msg91 sending the operator back.
   React.useEffect(() => {
-    if (proxyAuthToken) return;
-    loadScript().catch(() => {});
-  }, [proxyAuthToken]);
+    if (proxyAuthToken || widgetStarted.current) return;
+    widgetStarted.current = true;
+    startSignIn();
+  }, [proxyAuthToken, startSignIn]);
 
   const exchangeToken = React.useCallback(
     (token: string) => {
@@ -94,14 +89,12 @@ export function LoginScreen({ referenceId }: { referenceId: string }) {
           window.location.assign("/");
         })
         .catch((err: unknown) => {
-          const typed = recallEmail();
-
           if (err instanceof AdminFetchError && err.code === "forbidden") {
             // Signed in, but not an operator — or signed in with a session the
             // platform attached no e-mail to. The server's sentence already says
             // which, in the operator's language; `/unauthorized` renders it.
             retainedToken.current = null;
-            rememberDenial({ message: err.message, email: typed });
+            rememberDenial({ message: err.message, email: "" });
             router.replace("/unauthorized");
             return;
           }
@@ -152,33 +145,9 @@ export function LoginScreen({ referenceId }: { referenceId: string }) {
     exchangeToken(token);
   }
 
-  async function submitLogin(e: React.FormEvent) {
+  function submitLogin(e: React.FormEvent) {
     e.preventDefault();
-    const em = email.trim().toLowerCase();
-    if (!em) {
-      setLoginErr("Enter your work e-mail.");
-      return;
-    }
-
-    setLoginErr("");
-    rememberEmail(em);
-    setPhase("widget");
-
-    try {
-      await startMsg91SignIn({
-        referenceId,
-        email: em,
-        onFailure: () => {
-          setLoginErr("MSG91 could not sign you in. Try again.");
-          setPhase("idle");
-        },
-      });
-    } catch (err) {
-      setLoginErr(
-        err instanceof Error ? err.message : "MSG91 sign-in is unavailable."
-      );
-      setPhase("idle");
-    }
+    startSignIn();
   }
 
   const busy = phase === "exchanging";
@@ -273,28 +242,12 @@ export function LoginScreen({ referenceId }: { referenceId: string }) {
             </p>
           </div>
 
-          {widget || retryable ? null : (
-            <Field label="Work e-mail">
-              <Input
-                type="email"
-                placeholder="you@walkover.in"
-                value={email}
-                autoFocus
-                disabled={busy}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  setLoginErr("");
-                }}
-              />
-            </Field>
-          )}
-
           {loginErr ? <div className="callout">{loginErr}</div> : null}
 
           {/*
             MSG91 renders its widget into the element whose DOM id IS the
             reference id, and that element must exist before initVerification
-            runs — so it is always mounted and merely hidden until Continue.
+            runs — so it is always mounted and merely hidden outside the widget phase.
           */}
           <div
             id={referenceId}
@@ -325,7 +278,7 @@ export function LoginScreen({ referenceId }: { referenceId: string }) {
                 fontSize: 14,
               }}
             >
-              {busy ? "Completing sign-in…" : "Continue with MSG91 SSO"}
+              {busy ? "Completing sign-in…" : "Try again"}
             </button>
           )}
 
